@@ -1,0 +1,53 @@
+# ============================================================
+# Ad Performance Dashboard — Docker Compose
+# ============================================================
+# Two services:
+#   1. pipeline  — runs the ETL pipeline (one-shot or scheduled)
+#   2. dashboard — serves the Streamlit dashboard on port 8501
+#
+# Quick start (mock mode):
+#   docker-compose up
+#
+# Run pipeline only:
+#   docker-compose run pipeline
+#
+# Dashboard only:
+#   docker-compose up dashboard
+# ============================================================
+
+services:
+  # ---- ETL Pipeline ----
+  # Runs once on startup, then exits.
+  # To schedule, use cron on the host or Cloud Scheduler.
+  pipeline:
+    build: .
+    container_name: ad-pipeline
+    command: python run_pipeline.py --mock --local
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data           # Persist local CSV output
+      - ./credentials:/app/credentials:ro  # GCP service account key
+    restart: "no"
+
+  # ---- Streamlit Dashboard ----
+  dashboard:
+    build: .
+    container_name: ad-dashboard
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data           # Read pipeline output
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

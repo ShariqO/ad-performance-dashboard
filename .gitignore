@@ -1,0 +1,43 @@
+# Environment variables (NEVER commit this)
+.env
+
+# GCP service account keys
+credentials/
+*.json
+!package.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (generated locally)
+data/
+*.csv
+
+# Logs
+logs/
+*.log
+
+# Docker
+.docker/

@@ -1,0 +1,27 @@
+# Google Ads API client
+google-ads~=30.0.0
+
+# Meta (Facebook) Ads API client
+facebook-business~=19.0.0
+
+# Google Cloud BigQuery
+google-cloud-bigquery~=3.25.0
+
+# BigQuery + Pandas integration
+pyarrow>=16.0.0
+db-dtypes~=1.2.0
+
+# Data processing
+pandas~=2.2.0
+
+# Dashboard
+streamlit~=1.38.0
+
+# Interactive charts
+plotly~=5.22.0
+
+# Environment variable management
+python-dotenv~=1.0.0
+
+# HTTP retries (used by connectors)
+tenacity~=8.5.0
