@@ -156,7 +156,7 @@ class BigQueryLoader:
 
         # Add timestamp
         df = df.copy()
-        df["updated_at"] = datetime.utcnow().isoformat()
+        df["updated_at"] = pd.Timestamp.utcnow()
 
         if settings.app.local_mode:
             return self._load_local(df)
