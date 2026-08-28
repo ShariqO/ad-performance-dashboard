@@ -2,7 +2,7 @@
 
 A production-style data pipeline and dashboard that aggregates campaign performance data from **Google Ads** and **Meta (Facebook) Ads**, normalizes it into a common schema, computes derived metrics, stores it in **Google BigQuery**, and visualizes everything through an interactive **Streamlit** dashboard.
 
-![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
+![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.38-red?logo=streamlit)
 ![BigQuery](https://img.shields.io/badge/BigQuery-GCP-blue?logo=google-cloud)
 ![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)
@@ -39,20 +39,21 @@ graph LR
 ```
 ad-performance-dashboard/
 ├── connectors/
-│   ├── google_ads.py        # Google Ads API connector + mock data generator
-│   └── meta_ads.py          # Meta Ads API connector + mock data generator
+│   ├── google_ads.py          # Google Ads API connector + mock data generator
+│   └── meta_ads.py            # Meta Ads API connector + mock data generator
 ├── pipeline/
-│   ├── bigquery_loader.py   # BigQuery table management + data loading
-│   └── transform.py         # Derived metrics & trend calculations
+│   ├── bigquery_loader.py     # BigQuery table management + data loading
+│   └── transform.py           # Derived metrics & trend calculations
 ├── dashboard/
-│   └── app.py               # Streamlit dashboard with Plotly charts
+│   └── app.py                 # Streamlit dashboard with Plotly charts
 ├── config/
-│   └── settings.py          # Environment-based config with dataclasses
-├── run_pipeline.py          # Main ETL orchestrator (CLI entrypoint)
-├── Dockerfile               # Multi-purpose container image
-├── docker-compose.yml       # Pipeline + dashboard services
-├── requirements.txt         # Python dependencies
-├── .env.example             # Environment variable template
+│   └── settings.py            # Environment-based config with dataclasses
+├── run_pipeline.py            # Main ETL orchestrator (CLI entrypoint)
+├── get_refresh_token.py       # OAuth2 refresh token generator (Google Ads)
+├── Dockerfile                 # Multi-purpose container image
+├── docker-compose.yml         # Pipeline + dashboard services
+├── requirements.txt           # Python dependencies
+├── .env.example               # Environment variable template
 └── README.md
 ```
 
@@ -68,7 +69,7 @@ ad-performance-dashboard/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ad-performance-dashboard.git
+git clone https://github.com/ShariqO/ad-performance-dashboard.git
 cd ad-performance-dashboard
 
 python -m venv venv
@@ -115,34 +116,43 @@ Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 ### Step 2: Create a Test Account
 
-1. In your Manager Account, click **Accounts** → **Sub-accounts** → **+ New Account** → **Create a test account**
-2. This gives you a test account with sample campaigns pre-populated
-3. Note the **Test Account ID**
+Google Ads test accounts require a **dedicated Test Manager Account**, separate from any production manager:
+
+1. Open an **incognito browser window**
+2. Sign in with a Google account **not linked** to any existing Google Ads account
+3. Create a new Manager Account — it will automatically be a Test Manager (look for the red **"Test Account"** banner)
+4. Inside the Test Manager, click **Accounts** → **+** → **Create new account** — sub-accounts automatically inherit test status
+5. Note both the **Test Manager ID** and **Test Sub-account ID**
+
+> **Alternative**: Apply for **Basic Access** on your developer token (see Step 3). This lets you query production manager accounts directly, without needing a separate test account.
 
 ### Step 3: Apply for API Access
 
 1. Go to **Tools & Settings** → **API Center** in your Manager Account
-2. Fill out the application form for a **Basic Access** developer token
-3. For a test account, Basic Access is granted automatically
-4. Note your **Developer Token**
+2. Fill out the application form for a developer token
+3. Your token starts with **Test Account** access level — sufficient for test accounts
+4. To query production accounts, apply for **Basic Access** (typically approved within 1–2 business days for non-commercial use)
+5. Note your **Developer Token**
 
 ### Step 4: Create OAuth2 Credentials
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com/)
 2. Create a new project (or use existing)
-3. Enable the **Google Ads API**: `APIs & Services` → `Enable APIs` → search "Google Ads API"
-4. Go to `APIs & Services` → `Credentials` → `+ CREATE CREDENTIALS` → `OAuth client ID`
-5. Application type: **Desktop app**
+3. Enable the **Google Ads API**: `APIs & Services` → `Library` → search "Google Ads API"
+4. Set up the **OAuth consent screen**: `APIs & Services` → `OAuth consent screen`
+   - User type: **External**
+   - Add your own email as a **Test user**
+5. Create credentials: `APIs & Services` → `Credentials` → `+ CREATE CREDENTIALS` → `OAuth client ID`
+   - Application type: **Desktop app**
 6. Note the **Client ID** and **Client Secret**
 
 ### Step 5: Generate a Refresh Token
 
-```bash
-# Install the google-ads CLI tool (already in requirements.txt)
-pip install google-ads
+A helper script is included for the OAuth2 flow:
 
-# Run the OAuth2 flow
-google-ads-auth --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
+```bash
+# Ensure your .env has GOOGLE_ADS_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET set
+python get_refresh_token.py
 ```
 
 This opens a browser window. Sign in with the Google account that has access to your Ads account, authorize the app, and copy the **Refresh Token** that's printed.
@@ -173,15 +183,15 @@ USE_MOCK_DATA=false
 ### Step 2: Create an App
 
 1. Go to [developers.facebook.com/apps](https://developers.facebook.com/apps/)
-2. Click **Create App** → Choose **Business** type
+2. Click **Create App** → Choose **Other** → **Business** type
 3. Fill in the app name and contact email
-4. Note the **App ID** and **App Secret** (from Settings → Basic)
+4. Note the **App ID** and **App Secret** (from App Settings → Basic)
 
 ### Step 3: Add the Marketing API
 
 1. In your app dashboard, go to **Add Products**
 2. Find **Marketing API** and click **Set Up**
-3. This enables the ads_read and ads_management permissions
+3. This enables the `ads_read` and `ads_management` permissions
 
 ### Step 4: Generate an Access Token
 
@@ -191,22 +201,23 @@ USE_MOCK_DATA=false
 4. Grant the required permissions: `ads_read`, `ads_management`
 5. Copy the token — this is a **short-lived token** (~1 hour)
 
-**For a long-lived token** (~60 days):
+**Exchange for a long-lived token** (~60 days):
 
 ```bash
-curl -X GET "https://graph.facebook.com/v19.0/oauth/access_token\
-?grant_type=fb_exchange_token\
-&client_id=YOUR_APP_ID\
-&client_secret=YOUR_APP_SECRET\
-&fb_exchange_token=YOUR_SHORT_LIVED_TOKEN"
+curl -s "https://graph.facebook.com/v19.0/oauth/access_token?\
+grant_type=fb_exchange_token&\
+client_id=YOUR_APP_ID&\
+client_secret=YOUR_APP_SECRET&\
+fb_exchange_token=YOUR_SHORT_LIVED_TOKEN" | python -m json.tool
 ```
 
 ### Step 5: Find Your Ad Account ID
 
 1. Go to [business.facebook.com](https://business.facebook.com/)
-2. Navigate to **Business Settings** → **Ad Accounts**
+2. Navigate to **Business Settings** → **Accounts** → **Ad Accounts**
 3. Your account ID is in the format `act_XXXXXXXXXX`
-4. If you don't have an ad account, you can create a test ad account for development
+
+> **Note:** Meta does not offer a true "test ad account" with pre-populated data. If you don't have a real ad account with campaigns, the mock data generator is the recommended approach for development and demos.
 
 ### Step 6: Update `.env`
 
@@ -227,14 +238,14 @@ META_AD_ACCOUNT_ID=act_your_ad_account_id
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
-3. Enable the **BigQuery API**: `APIs & Services` → `Enable APIs` → search "BigQuery API"
+3. Enable the **BigQuery API**: `APIs & Services` → `Library` → search "BigQuery API"
 
 ### Step 2: Service Account
 
 1. Go to `IAM & Admin` → `Service Accounts` → `+ CREATE SERVICE ACCOUNT`
 2. Name: `ad-dashboard-sa`
-3. Role: **BigQuery Data Editor** + **BigQuery Job User**
-4. Click **Done**, then click the service account → **Keys** → **Add Key** → **Create new key** → **JSON**
+3. Roles: **BigQuery Data Editor** + **BigQuery Job User**
+4. Click **Create**, then go to the **Keys** tab → **Add Key** → **Create new key** → **JSON**
 5. Save the JSON file as `credentials/service-account.json` in the project root
 
 ### Step 3: Update `.env`
@@ -305,7 +316,7 @@ cp /path/to/your/service-account.json credentials/
 crontab -e
 
 # Run pipeline daily at 6 AM
-0 6 * * * cd /path/to/ad-performance-dashboard && /path/to/venv/bin/python run_pipeline.py --mock --local >> logs/pipeline.log 2>&1
+0 6 * * * cd /path/to/ad-performance-dashboard && /path/to/venv/bin/python run_pipeline.py >> logs/pipeline.log 2>&1
 ```
 
 ### Option B: Google Cloud Scheduler + Cloud Run
@@ -345,6 +356,25 @@ options:
   --days DAYS     Number of days to look back (default: 30)
 ```
 
+### Common Usage Patterns
+
+```bash
+# Full mock mode — no API keys needed, saves to local CSV
+python run_pipeline.py --mock --local
+
+# Real Google Ads + mock Meta → BigQuery
+python run_pipeline.py --mock-meta
+
+# Mock Google + real Meta Ads → BigQuery
+python run_pipeline.py --mock-google
+
+# Everything real → BigQuery
+python run_pipeline.py
+
+# Custom lookback period
+python run_pipeline.py --mock --local --days 7
+```
+
 ---
 
 ## Dashboard Features
@@ -370,7 +400,9 @@ options:
 - **Normalized schema**: Both platforms map to a single table, making cross-platform analysis trivial. In production, I'd keep raw tables per platform and use dbt for the transformation layer.
 - **Date partitioning**: BigQuery partitions by date to minimize query costs — only scans the date ranges you filter on.
 - **WRITE_TRUNCATE**: Each pipeline run replaces data to avoid duplicates and keep within free-tier storage. At scale, I'd use WRITE_APPEND with deduplication logic.
-- **Mock data**: Both connectors include realistic data generators so the pipeline can be demoed without API credentials.
+- **Mock data generators**: Both connectors include seeded random data generators, enabling end-to-end pipeline testing and demo without live API credentials.
+- **Dual-mode loading**: The `LOCAL_MODE` flag allows rapid local development with CSV output, then a single env var flip switches to BigQuery — no code changes needed.
+- **Safe credential management**: All secrets in `.env` (gitignored), service account JSON in `credentials/` (gitignored), no hardcoded values in source.
 
 ### What I'd Add at Scale
 
