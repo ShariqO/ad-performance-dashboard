@@ -31,8 +31,7 @@ _project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_project_root))
 
 from config.settings import settings
-from pipeline.bigquery_loader import BigQueryLoader
-from pipeline.transform import TransformPipeline
+from loader.snowflake_loader import SnowflakeLoader
 
 # ---------------------------------------------------------------------------
 # Page config (must be first Streamlit call)
@@ -141,22 +140,40 @@ st.markdown("""
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def load_data() -> pd.DataFrame:
-    """Load and transform ad performance data."""
-    loader = BigQueryLoader()
+    """Load ad performance data from Snowflake dbt mart layer."""
+    loader = SnowflakeLoader()
     loader.initialize()
 
-    df = loader.read_data()
+    query = """
+        SELECT
+            date,
+            platform,
+            campaign_id,
+            campaign_name,
+            impressions,
+            clicks,
+            spend,
+            conversions,
+            revenue,
+            cost_per_click,
+            click_through_rate,
+            cost_per_conversion,
+            roas,
+            updated_at
+        FROM AD_PERFORMANCE.MARTS.FCT_CAMPAIGN_PERFORMANCE
+        ORDER BY date ASC
+    """
+    df = loader.query(query)
+    loader.close()
 
     if df.empty:
         return df
 
+    # Lowercase column names (Snowflake returns uppercase by default)
+    df.columns = df.columns.str.lower()
+
     # Ensure date column is proper datetime
     df["date"] = pd.to_datetime(df["date"])
-
-    # Run transformations if derived columns are missing
-    if "cost_per_click" not in df.columns or df["cost_per_click"].isna().all():
-        pipeline = TransformPipeline()
-        df = pipeline.run(df)
 
     return df
 
