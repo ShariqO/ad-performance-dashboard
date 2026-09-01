@@ -1,0 +1,87 @@
+version: 2
+
+models:
+  # --- STAGING ---
+  - name: stg_google_ads
+    description: "Cleaned and standardized Google Ads data"
+    columns:
+      - name: campaign_id
+        description: "Google Ads campaign identifier"
+        tests:
+          - not_null                          # Test 1
+      - name: date
+        description: "Metric date"
+        tests:
+          - not_null                          # Test 2
+
+  - name: stg_meta_ads
+    description: "Cleaned and standardized Meta Ads data"
+    columns:
+      - name: campaign_id
+        description: "Meta Ads campaign identifier"
+        tests:
+          - not_null                          # Test 3
+      - name: date
+        description: "Metric date"
+        tests:
+          - not_null                          # Test 4
+
+  # --- INTERMEDIATE ---
+  - name: int_campaigns_unioned
+    description: "Unified cross-platform campaign data"
+    columns:
+      - name: campaign_id
+        description: "Platform-specific campaign identifier"
+        tests:
+          - not_null                          # Test 5
+      - name: platform
+        description: "Ad platform: google or meta"
+        tests:
+          - not_null                          # Test 6
+          - accepted_values:                  # Test 7
+              values: ['google', 'meta']
+
+  # --- MARTS ---
+  - name: dim_campaign
+    description: "Campaign dimension table — one row per unique campaign"
+    columns:
+      - name: campaign_id
+        description: "Unique campaign identifier"
+        tests:
+          - not_null                          # Test 8
+          - unique                            # Test 9
+      - name: platform
+        description: "Ad platform"
+        tests:
+          - not_null                          # Test 10
+
+  - name: fct_campaign_performance
+    description: "Daily campaign performance fact table with derived metrics"
+    columns:
+      - name: campaign_id
+        description: "Campaign identifier (FK to dim_campaign)"
+        tests:
+          - not_null                          # Test 11
+          - relationships:                    # Test 12
+              to: ref('dim_campaign')
+              field: campaign_id
+      - name: date
+        description: "Metric date"
+        tests:
+          - not_null                          # Test 13
+      - name: spend
+        description: "Ad spend in USD"
+        tests:
+          - not_null                          # Test 14
+
+  - name: fct_daily_platform_summary
+    description: "Aggregated daily performance metrics per platform"
+    columns:
+      - name: date
+        description: "Metric date"
+        tests:
+          - not_null                          # Test 15
+      - name: total_spend
+        description: "Total spend across campaigns for this platform-day"
+        tests:
+          - not_null                          # Test 16

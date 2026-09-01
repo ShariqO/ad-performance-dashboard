@@ -1,0 +1,35 @@
+version: 2
+
+sources:
+  - name: raw
+    database: AD_PERFORMANCE
+    schema: RAW
+    tables:
+      - name: ad_metrics
+        description: "Raw ad performance data loaded from Google Ads and Meta Ads connectors"
+        loaded_at_field: updated_at
+        config:
+          freshness:
+            warn_after: {count: 24, period: hour}
+            error_after: {count: 48, period: hour}
+        columns:
+          - name: date
+            description: "Date of the metric record"
+          - name: platform
+            description: "Ad platform: 'google' or 'meta'"
+          - name: campaign_id
+            description: "Platform-specific campaign identifier"
+          - name: campaign_name
+            description: "Human-readable campaign name"
+          - name: impressions
+            description: "Number of ad impressions"
+          - name: clicks
+            description: "Number of ad clicks"
+          - name: spend
+            description: "Ad spend in USD"
+          - name: conversions
+            description: "Number of conversions"
+          - name: revenue
+            description: "Revenue attributed to ads in USD"
+          - name: updated_at
+            description: "Timestamp of the last pipeline load"
