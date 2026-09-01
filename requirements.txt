@@ -4,12 +4,17 @@ google-ads~=30.0.0
 # Meta (Facebook) Ads API client
 facebook-business~=19.0.0
 
-# Google Cloud BigQuery
-google-cloud-bigquery~=3.25.0
+# Snowflake Data Warehouse
+snowflake-connector-python~=3.12.0
+cryptography>=42.0.0
 
-# BigQuery + Pandas integration
-pyarrow>=16.0.0
-db-dtypes~=1.2.0
+# dbt Transformation Engine
+dbt-snowflake~=1.8.0
+
+# Dagster Orchestration Engine
+dagster~=1.8.0
+dagster-webserver~=1.8.0
+dagster-dbt~=0.24.0
 
 # Data processing
 pandas~=2.2.0

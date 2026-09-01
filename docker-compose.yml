@@ -1,49 +1,55 @@
 # ============================================================
 # Ad Performance Dashboard — Docker Compose
 # ============================================================
-# Two services:
-#   1. pipeline  — runs the ETL pipeline (one-shot or scheduled)
-#   2. dashboard — serves the Streamlit dashboard on port 8501
+# Services:
+#   1. dagster-webserver — Dagster UI on port 3000
+#   2. dagster-daemon    — Executes schedules & retries in background
+#   3. dashboard        — Streamlit dashboard on port 8501
 #
-# Quick start (mock mode):
-#   docker-compose up
-#
-# Run pipeline only:
-#   docker-compose run pipeline
-#
-# Dashboard only:
-#   docker-compose up dashboard
+# Quick start:
+#   docker-compose up --build
 # ============================================================
 
 services:
-  # ---- ETL Pipeline ----
-  # Runs once on startup, then exits.
-  # To schedule, use cron on the host or Cloud Scheduler.
-  pipeline:
+  # ---- Dagster UI & Orchestration ----
+  dagster-webserver:
     build: .
-    container_name: ad-pipeline
-    command: python run_pipeline.py --mock --local
+    container_name: ad-dagster-webserver
+    command: dagster-webserver -h 0.0.0.0 -p 3000 -w workspace.yaml
+    ports:
+      - "3000:3000"
     env_file:
       - .env
     volumes:
-      - ./data:/app/data           # Persist local CSV output
-      - ./credentials:/app/credentials:ro  # GCP service account key
-    restart: "no"
+      - ./credentials:/app/credentials:ro
+      - ./dbt_project:/app/dbt_project
+      - ./dagster_project:/app/dagster_project
+    restart: unless-stopped
+
+  dagster-daemon:
+    build: .
+    container_name: ad-dagster-daemon
+    command: dagster-daemon run -w workspace.yaml
+    env_file:
+      - .env
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./dbt_project:/app/dbt_project
+      - ./dagster_project:/app/dagster_project
+    restart: unless-stopped
 
   # ---- Streamlit Dashboard ----
   dashboard:
     build: .
     container_name: ad-dashboard
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8501:8501"
     env_file:
       - .env
     volumes:
-      - ./data:/app/data           # Read pipeline output
       - ./credentials:/app/credentials:ro
-    depends_on:
-      pipeline:
-        condition: service_completed_successfully
+      - ./dbt_project:/app/dbt_project
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]

@@ -2,12 +2,12 @@
 Centralized configuration for the Ad Performance Dashboard.
 
 Loads all settings from environment variables (via .env file) and exposes
-them as typed dataclasses.  Import `settings` from this module to access
+them as typed dataclasses. Import `settings` from this module to access
 the active configuration anywhere in the project.
 
 Usage:
     from config.settings import settings
-    print(settings.google_ads.customer_id)
+    print(settings.snowflake.account)
 """
 
 from __future__ import annotations
@@ -88,24 +88,22 @@ class MetaAdsConfig:
 
 
 @dataclass(frozen=True)
-class BigQueryConfig:
-    """Google BigQuery settings."""
-    project_id: str = field(default_factory=lambda: _env("GCP_PROJECT_ID"))
-    dataset: str = field(default_factory=lambda: _env("BQ_DATASET", "ad_performance"))
-    table: str = field(default_factory=lambda: _env("BQ_TABLE", "ad_metrics"))
-    credentials_path: str = field(
-        default_factory=lambda: _env("GOOGLE_APPLICATION_CREDENTIALS", "")
+class SnowflakeConfig:
+    """Snowflake settings and connection configuration."""
+    account: str = field(default_factory=lambda: _env("SNOWFLAKE_ACCOUNT"))
+    user: str = field(default_factory=lambda: _env("SNOWFLAKE_USER"))
+    private_key_path: str = field(
+        default_factory=lambda: _env("SNOWFLAKE_PRIVATE_KEY_PATH", "credentials/snowflake_key.p8")
     )
-
-    @property
-    def full_table_id(self) -> str:
-        """Return the fully qualified table ID: project.dataset.table."""
-        return f"{self.project_id}.{self.dataset}.{self.table}"
+    warehouse: str = field(default_factory=lambda: _env("SNOWFLAKE_WAREHOUSE", "AD_PIPELINE_WH"))
+    database: str = field(default_factory=lambda: _env("SNOWFLAKE_DATABASE", "AD_PERFORMANCE"))
+    schema: str = field(default_factory=lambda: _env("SNOWFLAKE_SCHEMA", "RAW"))
+    table: str = field(default_factory=lambda: _env("SNOWFLAKE_TABLE", "AD_METRICS"))
 
     @property
     def is_configured(self) -> bool:
-        """Return True if BigQuery can be used."""
-        return bool(self.project_id)
+        """Return True if Snowflake credentials are set."""
+        return bool(self.account and self.user)
 
 
 @dataclass(frozen=True)
@@ -116,10 +114,7 @@ class AppConfig:
     )
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))
     use_mock_data: bool = field(
-        default_factory=lambda: _env("USE_MOCK_DATA", "false").lower() == "true"
-    )
-    local_mode: bool = field(
-        default_factory=lambda: _env("LOCAL_MODE", "false").lower() == "true"
+        default_factory=lambda: _env("USE_MOCK_DATA", "true").lower() == "true"
     )
     data_dir: Path = field(default_factory=lambda: _project_root / "data")
 
@@ -145,7 +140,7 @@ class Settings:
     """Root configuration object that aggregates all sub-configs."""
     google_ads: GoogleAdsConfig = field(default_factory=GoogleAdsConfig)
     meta_ads: MetaAdsConfig = field(default_factory=MetaAdsConfig)
-    bigquery: BigQueryConfig = field(default_factory=BigQueryConfig)
+    snowflake: SnowflakeConfig = field(default_factory=SnowflakeConfig)
     app: AppConfig = field(default_factory=AppConfig)
 
 
@@ -170,11 +165,11 @@ def setup_logging() -> logging.Logger:
     # Quieten noisy third-party loggers
     logging.getLogger("google.ads").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("google.auth").setLevel(logging.WARNING)
+    logging.getLogger("snowflake.connector").setLevel(logging.WARNING)
 
     logger = logging.getLogger("ad_dashboard")
     logger.info("Configuration loaded successfully")
-    logger.debug("Mock mode: %s | Local mode: %s", settings.app.use_mock_data, settings.app.local_mode)
+    logger.debug("Mock mode: %s", settings.app.use_mock_data)
     logger.debug("Date range: %s → %s", settings.app.start_date, settings.app.end_date)
 
     return logger

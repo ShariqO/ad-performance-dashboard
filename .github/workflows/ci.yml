@@ -1,0 +1,41 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Dagster Definitions
+        run: |
+          python -c "
+          from dagster_project.definitions import defs
+          assert len(defs.assets) == 4, 'Expected 4 asset definitions'
+          assert len(defs.schedules) == 1, 'Expected 1 schedule definition'
+          print('✅ Dagster definitions validated successfully!')
+          "
+
+      - name: Validate dbt Syntax & Models
+        run: |
+          cd dbt_project
+          dbt parse --profiles-dir .
+          echo "✅ dbt project syntax and manifest validated successfully!"
