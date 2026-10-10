@@ -37,7 +37,7 @@ Six models, sixteen tests.
 | Staging | `stg_meta_ads` | View | Clean Meta Ads metrics |
 | Intermediate | `int_campaigns_unioned` | View | Union both platforms into one schema |
 | Marts | `dim_campaign` | Table | Campaign metadata, first/last seen, active days |
-| Marts | `fct_campaign_performance` | Table | Daily performance with CPC, CTR, cost per conversion, ROAS |
+| Marts | `fct_campaign_performance` | Incremental | Daily performance with CPC, CTR, cost per conversion, ROAS |
 | Marts | `fct_daily_platform_summary` | Table | Platform-level daily rollups |
 
 Tests cover primary key uniqueness and non-null on `dim_campaign.campaign_id` and the composite keys, an `accepted_values` check on `int_campaigns_unioned.platform`, a `relationships` test asserting every `fct_campaign_performance.campaign_id` exists in `dim_campaign`, and not-null assertions across date, spend, and metric columns.
@@ -50,6 +50,8 @@ dbt test --profiles-dir .
 ## Why it's built this way
 
 **MERGE instead of full overwrite.** The loader stages extracts into a temp table and merges on `(campaign_id, date)`. A full `WRITE_TRUNCATE` would have been simpler, but reruns and backfills are normal in this kind of pipeline and I wanted them to be safe by default rather than something you have to think about.
+
+**Incremental fact table with a lookback window.** The fact table merges on `(campaign_id, date)` and reprocesses a trailing 3-day window (`lookback_window_days` in `dbt_project.yml`). Google Ads and Meta restate conversions and spend for several days as attribution settles, so a strict watermark would permanently miss those updates. Reprocessing the window catches late corrections while keeping daily runs fast.
 
 **Dagster over Airflow.** Airflow models a pipeline as a graph of tasks, where the data moving between them is implicit. Dagster models it as a graph of assets, so each step declares what table it produces and what it depends on. For a dbt-centric project that mapping is close to one-to-one, and `dagster-dbt` pulls every dbt model into the same graph.
 

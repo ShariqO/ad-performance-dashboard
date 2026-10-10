@@ -1,9 +1,21 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['campaign_id', 'date'],
+        incremental_strategy='merge',
+        on_schema_change='sync_all_columns'
+    )
+}}
+
 -- fct_campaign_performance.sql
 -- Fact table: daily campaign performance with derived metrics
 -- Replaces the old Python transform pipeline (CPC, CTR, ROAS, etc.)
 
 with base as (
     select * from {{ ref('int_campaigns_unioned') }}
+    {% if is_incremental() %}
+    where date >= dateadd(day, -{{ var('lookback_window_days', 3) }}, (select max(date) from {{ this }}))
+    {% endif %}
 ),
 
 with_metrics as (
